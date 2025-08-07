@@ -20,6 +20,7 @@ alert cluster operators.
 - **Compliance and Policy**: Enforcement: Helps maintain version consistency and adherence to organizational policies.
 - **Incremental Upgrades**: Facilitates frequent, incremental updates to reduce the risk of large, disruptive upgrades.
 - **Add-On Compatibility**: Ensures compatibility with the latest versions of Kubernetes add-ons and dependencies.
+- **Flexible Scope**: Supports filtering by namespaces to focus monitoring on specific parts of your cluster.
 
 ---
 

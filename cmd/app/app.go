@@ -117,6 +117,7 @@ func NewCommand(ctx context.Context) *cobra.Command {
 				log,
 				opts.RequeueDuration,
 				opts.DefaultTestAll,
+				opts.Namespaces,
 			)
 
 			if err := c.SetupWithManager(mgr); err != nil {

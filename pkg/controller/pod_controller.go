@@ -36,6 +36,7 @@ type PodReconciler struct {
 	RequeueDuration time.Duration // Configurable reschedule duration
 
 	defaultTestAll bool
+	namespaces     []string      // List of namespaces to monitor, empty means all namespaces
 }
 
 func NewPodReconciler(
@@ -46,6 +47,7 @@ func NewPodReconciler(
 	log *logrus.Entry,
 	requeueDuration time.Duration,
 	defaultTestAll bool,
+	namespaces []string,
 ) *PodReconciler {
 	log = log.WithField("controller", "pod")
 	versionGetter := version.New(log, imageClient, cacheTimeout)
@@ -58,12 +60,28 @@ func NewPodReconciler(
 		VersionChecker:  checker.New(search),
 		RequeueDuration: requeueDuration,
 		defaultTestAll:  defaultTestAll,
+		namespaces:      namespaces,
 	}
 }
 
 // Reconcile is triggered whenever a watched object changes.
 func (r *PodReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := r.Log.WithField("pod", req.NamespacedName)
+
+	// Check if we should process this namespace
+	if len(r.namespaces) > 0 {
+		namespaceAllowed := false
+		for _, ns := range r.namespaces {
+			if ns == req.Namespace {
+				namespaceAllowed = true
+				break
+			}
+		}
+		if !namespaceAllowed {
+			log.Debugf("Skipping pod in namespace %s as it's not in the allowed namespaces list", req.Namespace)
+			return ctrl.Result{Requeue: false}, nil
+		}
+	}
 
 	// Fetch the Pod instance
 	pod := &corev1.Pod{}

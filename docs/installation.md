@@ -45,6 +45,16 @@ of the container in the pod.
 
 However, by passing the following flag,`-a, --test-all-containers` version-checker will test all containers within the cluster.
 
+### Namespace Filtering
+
+By default, version-checker will monitor pods in all namespaces. You can restrict version-checker to only monitor specific namespaces by using the `--namespaces` flag with a comma-separated list of namespaces:
+
+```sh
+--namespaces=namespace1,namespace2,namespace3
+```
+
+This is useful for large clusters where you may want to limit version checking to specific namespaces for performance reasons or organizational boundaries.
+
 ### Supported Annotations
 
 `version-checker` supports the following annotations to enrich version checking on image tags:
