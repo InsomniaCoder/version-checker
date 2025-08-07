@@ -41,7 +41,7 @@ func TestNewController(t *testing.T) {
 	)
 	imageClient := &client.Client{}
 
-	controller := NewPodReconciler(5*time.Minute, metrics, imageClient, kubeClient, testLogger, time.Hour, true)
+	controller := NewPodReconciler(5*time.Minute, metrics, imageClient, kubeClient, testLogger, time.Hour, true, []string{})
 
 	assert.NotNil(t, controller)
 	assert.Equal(t, controller.defaultTestAll, true)
@@ -86,7 +86,7 @@ func TestReconcile(t *testing.T) {
 				kubeClient,
 			)
 
-			controller := NewPodReconciler(5*time.Minute, metrics, imageClient, kubeClient, testLogger, 5*time.Minute, true)
+			controller := NewPodReconciler(5*time.Minute, metrics, imageClient, kubeClient, testLogger, 5*time.Minute, true, []string{})
 
 			ctx := context.Background()
 
@@ -123,11 +123,103 @@ func TestSetupWithManager(t *testing.T) {
 		kubeClient,
 	)
 	imageClient := &client.Client{}
-	controller := NewPodReconciler(5*time.Minute, metrics, imageClient, kubeClient, testLogger, time.Hour, true)
+	controller := NewPodReconciler(5*time.Minute, metrics, imageClient, kubeClient, testLogger, time.Hour, true, []string{})
 
 	mgr, err := manager.New(&rest.Config{}, manager.Options{LeaderElectionConfig: nil})
 	require.NoError(t, err)
 
 	err = controller.SetupWithManager(mgr)
 	assert.NoError(t, err, "SetupWithManager should not return an error")
+}
+
+func TestNamespaceFiltering(t *testing.T) {
+	imageClient := &client.Client{}
+
+	tests := []struct {
+		name            string
+		pod             *corev1.Pod
+		namespaces      []string
+		expectedError   bool
+		expectedRequeue bool
+	}{
+		{
+			name: "Pod in allowed namespace",
+			pod: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-pod",
+					Namespace: "allowed-ns",
+				},
+			},
+			namespaces:      []string{"allowed-ns", "other-ns"},
+			expectedError:   false,
+			expectedRequeue: true, // Should be requeued after processing
+		},
+		{
+			name: "Pod in non-allowed namespace",
+			pod: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-pod",
+					Namespace: "not-allowed-ns",
+				},
+			},
+			namespaces:      []string{"allowed-ns", "other-ns"},
+			expectedError:   false,
+			expectedRequeue: false, // Should not be requeued
+		},
+		{
+			name: "Empty namespaces list (all namespaces allowed)",
+			pod: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-pod",
+					Namespace: "any-ns",
+				},
+			},
+			namespaces:      []string{},
+			expectedError:   false,
+			expectedRequeue: true, // Should be requeued after processing
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			kubeClient := fake.NewFakeClient()
+			metrics := metrics.New(
+				logrus.NewEntry(logrus.StandardLogger()),
+				prometheus.NewRegistry(),
+				kubeClient,
+			)
+
+			controller := NewPodReconciler(5*time.Minute, metrics, imageClient, kubeClient, testLogger, 5*time.Minute, true, tt.namespaces)
+
+			ctx := context.Background()
+
+			if tt.pod != nil {
+				err := kubeClient.Create(ctx, tt.pod)
+				assert.NoError(t, err)
+			}
+
+			req := ctrl.Request{
+				NamespacedName: types.NamespacedName{
+					Name:      tt.pod.Name,
+					Namespace: tt.pod.Namespace,
+				},
+			}
+
+			result, err := controller.Reconcile(ctx, req)
+
+			if tt.expectedError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+
+			// Check if the pod was requeued or not
+			if tt.expectedRequeue {
+				assert.NotZero(t, result.RequeueAfter, "Pod should be requeued")
+			} else {
+				assert.Zero(t, result.RequeueAfter, "Pod should not be requeued")
+				assert.False(t, result.Requeue, "Pod should not be requeued")
+			}
+		})
+	}
 }

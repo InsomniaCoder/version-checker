@@ -70,6 +70,10 @@ type Options struct {
 	DefaultTestAll bool
 	LogLevel       string
 
+	// Namespaces is a comma-separated list of namespaces to monitor
+	// If empty, all namespaces will be monitored
+	Namespaces []string
+
 	CacheTimeout            time.Duration
 	GracefulShutdownTimeout time.Duration
 	CacheSyncPeriod         time.Duration
@@ -142,6 +146,10 @@ func (o *Options) addAppFlags(fs *pflag.FlagSet) {
 	fs.DurationVarP(&o.CacheSyncPeriod,
 		"cache-sync-period", "", 5*time.Hour,
 		"The time in which all resources should be updated.")
+
+	fs.StringSliceVarP(&o.Namespaces,
+		"namespaces", "n", []string{},
+		"Comma-separated list of namespaces to monitor. If empty, all namespaces will be monitored.")
 
 	fs.DurationVarP(&o.GracefulShutdownTimeout,
 		"graceful-shutdown-timeout", "", 10*time.Second,
